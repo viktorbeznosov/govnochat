@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title><%=title %></title>
+    <meta charset="utf-8" />
+</head>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script src = "/socket.io/socket.io.js"></script>
+<script type="text/javascript">
+  // var socket = io.connect('http://localhost:8080');
+  var gamers = io.connect('http://localhost:8080/gamers');
+
+  $(document).ready(function(){
+
+        gamers.on("welcome", function(data){
+          console.log("Reseieve: " + data);
+        });
+
+        var user = JSON.parse(localStorage.getItem('user'));
+        if (user){
+          gamers.emit('add user', user);
+          $('#exit').show();
+        } else {
+          $('#exit').hide();
+        }
+
+
+
+        gamers.on('login', function(data){
+            var user = JSON.parse(localStorage.getItem('user'));
+            //Доработать!!!
+            if (!user){
+              console.log('login');
+              console.log(data)
+              var user = {
+                name: data.name,
+              }
+              localStorage.setItem('user', JSON.stringify(user));
+            }
+            $('#chatLabel span').text('Enter your message');
+            $('#exit').show();
+        });
+
+        gamers.on('hello', function(data){
+           var chatBody = $('#messages').val();
+           chatBody += "\n";
+           chatBody += data.message;
+           $('#messages').val(chatBody);
+        });
+
+        var user = JSON.parse(localStorage.getItem('user'));
+
+        if (user){
+          $('#chatLabel span').text('Enter your message');
+          $('#messages').show();
+        } else {
+          $('#chatLabel span').text('What is your name?');
+          $('#messages').hide();
+        }
+
+        $('input[type="submit"]').on('click', function(){
+            var message = $('input[name="message"]').val();
+            if (message){
+                $('input[name="message"]').val('');
+                var user = JSON.parse(localStorage.getItem('user'));
+                console.log('message user');
+                console.log(user);
+                if (user && user.name){
+                  gamers.emit('message', {
+                    name: user.name,
+                    message: message
+                  });
+                } else {
+                  gamers.emit('add user', {name: message})
+                }
+
+            }
+        });
+
+        gamers.on("getRooms", function(data){
+          $('label[for="rooms"]').show();
+          $('select[name="rooms"]').html('');
+          data.rooms.forEach(function(item){
+            $('select[name="rooms"]').append('<option value="'+item+'">'+item+'</option>')
+          });
+          $('#messages').show();
+          var user = JSON.parse(localStorage.getItem('user'));
+          if (!user.room){
+            var selectedRoom = $('select[name="rooms"] option:selected').val();
+            var user = {
+              name: user.name,
+              room:selectedRoom
+            }
+            localStorage.setItem('user', JSON.stringify(user));
+            gamers.emit("joinRoom", selectedRoom);
+          } else {
+            $('select[name="rooms"] option[value="' + user.room + '"]').attr('selected','selected');
+          }
+
+        });
+
+        $('select[name="rooms"]').on('change', function(){
+          var selectedRoom = $('select[name="rooms"] option:selected').val();
+          var user = JSON.parse(localStorage.getItem('user'));
+          var user = {
+            name: user.name,
+            room:selectedRoom
+          }
+          localStorage.setItem('user', JSON.stringify(user));
+          gamers.emit("joinRoom", selectedRoom);
+        });
+
+        $('#exit').on('click', function(){
+          var user = JSON.parse(localStorage.getItem('user'));
+          gamers.emit("disconnected", user);
+          localStorage.clear();
+          $(this).hide();
+          $('#messages').val('');
+          $('#messages').hide();
+          $('label[for="rooms"]').hide();
+          $('#chatLabel span').text('What is your name?');
+        });
+
+        gamers.on('disconnect', function(){
+          gamers.connect();
+        })
+
+        gamers.on("err", function(data){
+          var chatBody = $('#messages').val();
+          chatBody += "\n";
+          chatBody += data;
+          $('#messages').val(chatBody);
+        });
+
+        gamers.on("success", function(data){
+          var chatBody = $('#messages').val();
+          chatBody += "\n";
+          chatBody += data;
+          $('#messages').val(chatBody);
+        });
+  });
+
+</script>
+<body>
+    <h1><%=title %> in Node JS</h1>
+    <form action='' onsubmit='return false'>
+        <label id="chatLabel" data-name="">
+            <span>What is your name?</span>
+            <input type="text" name="message">
+        </label>
+        <input type="submit" value="Send">
+        <button id="exit" style="display:none;">Exit</button>
+        <br><br>
+        <label for="rooms" style="display:none;">
+          Change the room
+          <select id="rooms" name="rooms">
+
+          </select>
+        </label>
+        <br>
+        <textarea id="messages" rows="10" cols="42" disabled></textarea>
+    </form>
+
+</body>
+<html>
